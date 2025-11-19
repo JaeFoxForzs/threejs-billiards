@@ -1,4 +1,4 @@
-import { Ball, BallType } from './objects/Ball';
+import { Ball } from './objects/Ball';
 
 export enum Player { ONE = 1, TWO = 2 }
 
@@ -7,69 +7,84 @@ export interface GameState {
   scoreP1: number;
   scoreP2: number;
   message: string;
-  canPlaceCueBall: boolean;
+  canPlaceCueBall: boolean; // Можно ли двигать шар рукой
+  isBreakShot: boolean;     // Является ли ход начальным ударом (разбоем)
   gameOver: boolean;
   winner: Player | null;
 }
 
+/**
+ * Класс правил игры "Свободная пирамида" (Американка).
+ * Цель: первым забить 8 шаров.
+ * Особенности: 
+ * 1. Любой шар может быть битком (кроме разбоя).
+ * 2. За любой забитый шар дается очко.
+ * 3. Штрафы пока опущены для простоты.
+ */
 export class GameRules {
-  private state: GameState;
+  private state!: GameState;
   private pocketedCountTurn: number = 0;
-  private cueBallPocketed: boolean = false;
   
   private readonly WIN_SCORE = 8;
 
   constructor() {
-    this.state = {
-      currentPlayer: Player.ONE,
-      scoreP1: 0,
-      scoreP2: 0,
-      message: 'Разбейте пирамиду!',
-      canPlaceCueBall: false,
-      gameOver: false,
-      winner: null
-    };
+    this.resetGame();
   }
 
   public onTurnStart(): void {
     this.pocketedCountTurn = 0;
-    this.cueBallPocketed = false;
-    this.state.message = `Ход игрока ${this.state.currentPlayer}`;
-  }
-
-  public onBallPocketed(ball: Ball): void {
-    this.pocketedCountTurn++;
-    if (ball.getType() === BallType.CUE) {
-      this.cueBallPocketed = true;
+    // Сообщение зависит от фазы
+    if (this.state.isBreakShot) {
+        this.state.message = `Игрок ${this.state.currentPlayer}: Разбой пирамиды! Переместите шар в "Дом".`;
+    } else {
+        this.state.message = `Игрок ${this.state.currentPlayer}: Выберите шар для удара.`;
     }
   }
 
-  // Исправлено: _ball чтобы линтер не ругался на неиспользуемую переменную
-  public onCueBallContact(_ball: Ball): void {
-      // Заглушка
+  public onBallPocketed(_ball: Ball): void {
+    // В свободке любой шар приносит очко
+    this.pocketedCountTurn++;
   }
 
   public onTurnEnd(): void {
     if (this.state.gameOver) return;
 
-    let points = this.pocketedCountTurn;
+    const points = this.pocketedCountTurn;
     
+    // Если были забиты шары
     if (points > 0) {
         this.addScore(points);
-        this.state.message = `Забито: ${points}. Продолжайте!`;
+        this.state.message = `Забито: ${points}. Продолжайте ход!`;
         
-        if (this.cueBallPocketed) {
-             this.state.canPlaceCueBall = true;
-             this.state.message += " (Свояк! Поставьте биток)";
+        // Если был забит шар при разбое, следующий удар уже не считается разбоем,
+        // но игрок продолжает серию.
+        if (this.state.isBreakShot) {
+            this.state.isBreakShot = false;
         }
-    } else {
-        this.state.message = "Мимо. Переход хода.";
+        
+        // Биток рукой ставить нельзя (если только не вылетел, но это пока не обрабатываем)
+        this.state.canPlaceCueBall = false;
+    } 
+    else {
+        // Промах
+        this.state.message = "Промах. Переход хода.";
         this.switchPlayer();
+        
+        // Если промахнулись на разбое (не забили), разбой считается завершенным,
+        // дальше играем любым шаром.
+        if (this.state.isBreakShot) {
+            this.state.isBreakShot = false;
+        }
+        
+        this.state.canPlaceCueBall = false;
     }
 
     this.checkWin();
   }
 
+  /**
+   * Вызывается, когда игрок закончил перемещать биток рукой и готов бить
+   */
   public cueBallPlaced(): void {
       this.state.canPlaceCueBall = false;
       this.state.message = `Ход игрока ${this.state.currentPlayer}`;
@@ -99,10 +114,6 @@ export class GameRules {
       }
   }
 
-  public getTurnStartMessage(): string {
-      return this.state.message;
-  }
-
   public getState(): GameState { return { ...this.state }; }
   
   public resetGame(): void {
@@ -110,8 +121,9 @@ export class GameRules {
           currentPlayer: Player.ONE,
           scoreP1: 0,
           scoreP2: 0,
-          message: 'Новая игра. Разбивайте!',
-          canPlaceCueBall: false,
+          message: 'Разбейте пирамиду! Переместите биток в зону дома.',
+          canPlaceCueBall: true, // На старте перемещаем биток
+          isBreakShot: true,     // Это первый удар
           gameOver: false,
           winner: null
       };

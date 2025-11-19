@@ -1,6 +1,6 @@
 export class UIManager {
   private container: HTMLElement;
-  
+
   // ... остальные элементы UI (scoreP1, scoreP2 и т.д.) ...
   private scoreP1: HTMLElement;
   private scoreP2: HTMLElement;
@@ -16,7 +16,7 @@ export class UIManager {
   private onPowerUpdateCallback?: (power: number) => void;
   private onAimDeltaCallback?: (delta: number) => void;
   private onRestartCallback?: () => void;
-  
+
   // Новые колбэки для отладки
   private onToggleCollisionCallback?: (visible: boolean) => void;
   private onToggleTriggersCallback?: (visible: boolean) => void;
@@ -44,59 +44,59 @@ export class UIManager {
   }
 
   private createDebugPanel(): void {
-      const panel = document.createElement('div');
-      panel.style.position = 'absolute';
-      panel.style.top = '10px';
-      panel.style.left = '10px';
-      panel.style.backgroundColor = 'rgba(0,0,0,0.7)';
-      panel.style.padding = '10px';
-      panel.style.borderRadius = '8px';
-      panel.style.color = 'white';
-      panel.style.fontFamily = 'sans-serif';
-      panel.style.fontSize = '12px';
-      panel.style.pointerEvents = 'auto';
-      panel.style.zIndex = '1000';
+    const panel = document.createElement('div');
+    panel.style.position = 'absolute';
+    panel.style.top = '10px';
+    panel.style.left = '10px';
+    panel.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    panel.style.padding = '10px';
+    panel.style.borderRadius = '8px';
+    panel.style.color = 'white';
+    panel.style.fontFamily = 'sans-serif';
+    panel.style.fontSize = '12px';
+    panel.style.pointerEvents = 'auto';
+    panel.style.zIndex = '1000';
 
-      const title = document.createElement('div');
-      title.textContent = '🔧 Debug Mode';
-      title.style.marginBottom = '5px';
-      title.style.fontWeight = 'bold';
-      panel.appendChild(title);
+    const title = document.createElement('div');
+    title.textContent = '🔧 Debug Mode';
+    title.style.marginBottom = '5px';
+    title.style.fontWeight = 'bold';
+    panel.appendChild(title);
 
-      // Чекбокс Коллизии
-      const lblCol = document.createElement('label');
-      lblCol.style.display = 'block';
-      lblCol.style.marginBottom = '3px';
-      lblCol.style.cursor = 'pointer';
-      
-      const chkCol = document.createElement('input');
-      chkCol.type = 'checkbox';
-      chkCol.style.marginRight = '5px';
-      chkCol.addEventListener('change', (e) => {
-          if (this.onToggleCollisionCallback) this.onToggleCollisionCallback((e.target as HTMLInputElement).checked);
-      });
-      
-      lblCol.appendChild(chkCol);
-      lblCol.appendChild(document.createTextNode('Collision Mesh (Red)'));
-      panel.appendChild(lblCol);
+    // Чекбокс Коллизии
+    const lblCol = document.createElement('label');
+    lblCol.style.display = 'block';
+    lblCol.style.marginBottom = '3px';
+    lblCol.style.cursor = 'pointer';
 
-      // Чекбокс Триггеры
-      const lblTrig = document.createElement('label');
-      lblTrig.style.display = 'block';
-      lblTrig.style.cursor = 'pointer';
+    const chkCol = document.createElement('input');
+    chkCol.type = 'checkbox';
+    chkCol.style.marginRight = '5px';
+    chkCol.addEventListener('change', (e) => {
+      if (this.onToggleCollisionCallback) this.onToggleCollisionCallback((e.target as HTMLInputElement).checked);
+    });
 
-      const chkTrig = document.createElement('input');
-      chkTrig.type = 'checkbox';
-      chkTrig.style.marginRight = '5px';
-      chkTrig.addEventListener('change', (e) => {
-          if (this.onToggleTriggersCallback) this.onToggleTriggersCallback((e.target as HTMLInputElement).checked);
-      });
+    lblCol.appendChild(chkCol);
+    lblCol.appendChild(document.createTextNode('Collision Mesh (Red)'));
+    panel.appendChild(lblCol);
 
-      lblTrig.appendChild(chkTrig);
-      lblTrig.appendChild(document.createTextNode('Pockets (Green)'));
-      panel.appendChild(lblTrig);
+    // Чекбокс Триггеры
+    const lblTrig = document.createElement('label');
+    lblTrig.style.display = 'block';
+    lblTrig.style.cursor = 'pointer';
 
-      this.container.appendChild(panel);
+    const chkTrig = document.createElement('input');
+    chkTrig.type = 'checkbox';
+    chkTrig.style.marginRight = '5px';
+    chkTrig.addEventListener('change', (e) => {
+      if (this.onToggleTriggersCallback) this.onToggleTriggersCallback((e.target as HTMLInputElement).checked);
+    });
+
+    lblTrig.appendChild(chkTrig);
+    lblTrig.appendChild(document.createTextNode('Pockets (Green)'));
+    panel.appendChild(lblTrig);
+
+    this.container.appendChild(panel);
   }
 
   public onToggleCollision(cb: (v: boolean) => void) { this.onToggleCollisionCallback = cb; }
@@ -122,7 +122,7 @@ export class UIManager {
       }
       this.currentPower = 0;
       this.powerFill.style.height = '0%';
-      if(this.onPowerUpdateCallback) this.onPowerUpdateCallback(0);
+      if (this.onPowerUpdateCallback) this.onPowerUpdateCallback(0);
     };
     this.powerTrigger.addEventListener('mousedown', startPowerDrag);
     this.powerTrigger.addEventListener('touchstart', startPowerDrag);
@@ -137,12 +137,12 @@ export class UIManager {
     const moveAimDrag = (e: MouseEvent | TouchEvent) => {
       if (!this.isDraggingAim) return;
       const y = this.getClientY(e);
-      const delta = this.lastAimY - y; 
+      const delta = this.lastAimY - y;
       this.lastAimY = y;
       const currentBgPos = parseFloat(this.wheelMarks.style.backgroundPositionY || '0');
       this.wheelMarks.style.backgroundPositionY = `${currentBgPos - delta}px`;
       if (this.onAimDeltaCallback) {
-        this.onAimDeltaCallback(delta * 0.005); 
+        this.onAimDeltaCallback(delta * 0.005);
       }
       e.preventDefault();
     };
@@ -156,9 +156,9 @@ export class UIManager {
     window.addEventListener('mouseup', endAimDrag);
     window.addEventListener('touchend', endAimDrag);
     this.menuBtn.addEventListener('click', () => {
-        if(confirm("Перезапустить игру?")) {
-            if(this.onRestartCallback) this.onRestartCallback();
-        }
+      if (confirm("Перезапустить игру?")) {
+        if (this.onRestartCallback) this.onRestartCallback();
+      }
     });
   }
 
@@ -180,11 +180,23 @@ export class UIManager {
     return (e as MouseEvent).clientY;
   }
 
-  public updateGameInfo(message: string, player: number, scoreText: string, _pocketed: number): void {
+  public updateGameInfo(message: string, player: number, _scoreText: string, _pocketed: number): void {
     this.gameMessage.textContent = message;
-    const [s1, s2] = scoreText.split('|').map(s => s.replace(/\D/g, ''));
-    this.scoreP1.textContent = s1 || '0';
-    this.scoreP2.textContent = s2 || '0';
+
+    // Мы ожидаем, что scoreText приходит в формате "Счет: X : Y" или просто передаем числа отдельно
+    // Но чтобы не ломать интерфейс GameRules, распарсим строку надежнее
+    // Или лучше: просто берем очки из стейта (но здесь мы принимаем строку).
+    // Фикс:
+    const parts = _scoreText.match(/\d+/g); // Найдем все числа
+    if (parts && parts.length >= 2) {
+      this.scoreP1.textContent = parts[0];
+      this.scoreP2.textContent = parts[1];
+    } else {
+      // Fallback если формат другой
+      this.scoreP1.textContent = "0";
+      this.scoreP2.textContent = "0";
+    }
+
     this.scoreP1.classList.toggle('active', player === 1);
     this.scoreP2.classList.toggle('active', player === 2);
     document.querySelector('.avatar.p1')?.classList.toggle('active', player === 1);
@@ -192,7 +204,7 @@ export class UIManager {
   }
 
   public setControlsEnabled(enabled: boolean): void {
-    this.container.style.pointerEvents = 'none'; 
+    this.container.style.pointerEvents = 'none';
     this.powerTrigger.style.pointerEvents = enabled ? 'auto' : 'none';
     this.aimTrigger.style.pointerEvents = enabled ? 'auto' : 'none';
     this.powerTrigger.style.opacity = enabled ? '1' : '0.5';
@@ -202,5 +214,5 @@ export class UIManager {
   public onPowerUpdate(cb: (power: number) => void) { this.onPowerUpdateCallback = cb; }
   public onAimDelta(cb: (delta: number) => void) { this.onAimDeltaCallback = cb; }
   public onRestart(cb: () => void) { this.onRestartCallback = cb; }
-  public dispose() {}
+  public dispose() { }
 }

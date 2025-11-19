@@ -23,6 +23,10 @@ export class BilliardGame {
   private ballsAreMoving: boolean = false;
   private turnEndTimer: number | null = null;
 
+  // Флаг: Ожидаем ли мы последствия удара игрока?
+  // Защищает от случайных срабатываний физики (просадка шаров при респавне/перемещении)
+  private isStrikePending: boolean = false;
+
   constructor() {
     this.clock = new THREE.Clock();
   }
@@ -48,13 +52,20 @@ export class BilliardGame {
 
     // 4. Управление
     this.inputController = new InputController(
-      this.sceneManager.getCamera(),
+      this.sceneManager, // <-- НОВЫЙ АРГУМЕНТ
       this.sceneManager.getRenderer().domElement,
       this.cueStick,
       this.ballManager,
       this.gameRules,
       this.table
     );
+
+    // == ВАЖНО: Передаем ссылку на игру в контроллер, чтобы он мог сообщить об ударе ==
+    // Но так как мы уже создали контроллер, нам нужен метод.
+    // Лучше было бы через callback, но сделаем публичный метод в игре и вызовем его из контроллера.
+    // Для этого нужно передать this в InputController. Но я не менял сигнатуру конструктора InputController.
+    // Сделаем через EventListener на window, как у нас уже сделано для 'restartGame'.
+    window.addEventListener('playerStrike', () => this.notifyPlayerStrike());
 
     // Добавляем UI элементы
     this.sceneManager.addToScene(this.inputController.getAimLine());
@@ -76,6 +87,11 @@ export class BilliardGame {
     window.addEventListener('restartGame', () => this.restartGame());
 
     console.log('✅ Game initialized');
+  }
+
+  // Вызывается, когда игрок реально ударил кием
+  public notifyPlayerStrike(): void {
+    this.isStrikePending = true;
   }
 
   private async loadAssets(): Promise<void> {
@@ -116,22 +132,48 @@ export class BilliardGame {
   }
 
   private checkTurnState(): void {
+    // Если мы в режиме расстановки, физику хода игнорируем
+    if (this.gameRules.getState().canPlaceCueBall) {
+      this.ballsAreMoving = false;
+      this.isStrikePending = false; // Сбрасываем
+      return;
+    }
+
     const allStopped = this.ballManager.areAllBallsStopped();
 
-    if (!allStopped && !this.ballsAreMoving) {
-      this.ballsAreMoving = true;
-      this.gameRules.onTurnStart();
-      this.inputController.handleTurnStart();
-      if (this.turnEndTimer) clearTimeout(this.turnEndTimer);
-    } else if (allStopped && this.ballsAreMoving) {
-      if (!this.turnEndTimer) {
-        this.turnEndTimer = window.setTimeout(() => {
-          this.ballsAreMoving = false;
-          this.gameRules.onTurnEnd();
-          this.inputController.handleTurnEnd();
-          this.updateUI();
-          this.turnEndTimer = null;
-        }, 500);
+    if (!allStopped) {
+      // Шары движутся
+      if (!this.ballsAreMoving) {
+        // Начало движения.
+        // Засчитываем начало хода ТОЛЬКО если был удар игрока (isStrikePending)
+        // ИЛИ если движение очень сильное (на случай, если шар упал сам, но это редкость)
+
+        if (this.isStrikePending) {
+          this.ballsAreMoving = true;
+          this.gameRules.onTurnStart();
+          this.inputController.handleTurnStart();
+          if (this.turnEndTimer) clearTimeout(this.turnEndTimer);
+        }
+        else {
+          // Это паразитное движение (джиттер). Игнорируем его для логики игры.
+          // (Физика все равно работает, шары подвинутся, но ход не начнется/закончится)
+        }
+      }
+    }
+    else {
+      // Шары стоят
+      if (this.ballsAreMoving) {
+        // Они двигались, а теперь встали. Конец хода.
+        if (!this.turnEndTimer) {
+          this.turnEndTimer = window.setTimeout(() => {
+            this.ballsAreMoving = false;
+            this.isStrikePending = false; // Удар отработан
+            this.gameRules.onTurnEnd();
+            this.inputController.handleTurnEnd();
+            this.updateUI();
+            this.turnEndTimer = null;
+          }, 500);
+        }
       }
     }
   }
