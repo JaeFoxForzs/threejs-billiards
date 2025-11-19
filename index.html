@@ -1,18 +1,55 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Американский пул 8-ball</title>
+  <title>Русский Бильярд 3D</title>
   <link rel="stylesheet" href="/styles/main.css">
   <link rel="stylesheet" href="/styles/billiard-ui.css">
 </head>
 <body>
   <div id="game-container">
-    <div id="loading">Загрузка...</div>
+    <div id="loading">Загрузка стола...</div>
     <div id="ui-overlay" class="hidden"></div>
   </div>
+  
+  <!-- UI СЛОЙ -->
+  <div id="game-ui">
+    <!-- Верхняя панель -->
+    <div class="top-bar">
+      <button id="menu-btn" class="icon-btn">☰</button>
+      <div class="score-board">
+        <span id="score-p1" class="score active">0</span>
+        <span class="divider">:</span>
+        <span id="score-p2" class="score">0</span>
+      </div>
+      <div class="player-avatars">
+        <div class="avatar p1 active"></div>
+        <div class="avatar p2"></div>
+      </div>
+    </div>
+
+    <!-- Левый контрол (Сила удара) -->
+    <div class="control-area left">
+      <div class="power-track-bg">
+        <div id="power-fill" class="power-fill"></div>
+        <div class="cue-icon"></div>
+      </div>
+      <div id="power-trigger" class="touch-zone"></div> <!-- Невидимая зона для пальца -->
+    </div>
+
+    <!-- Правый контрол (Точное прицеливание) -->
+    <div class="control-area right">
+      <div class="aim-wheel-bg">
+        <div class="wheel-marks"></div>
+      </div>
+      <div id="aim-trigger" class="touch-zone"></div>
+    </div>
+    
+    <!-- Сообщение по центру -->
+    <div id="game-message" class="game-message">Разбейте пирамиду</div>
+  </div>
+
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

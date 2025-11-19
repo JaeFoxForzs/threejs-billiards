@@ -1,133 +1,169 @@
 export class UIManager {
-  public static readonly MIN_POWER = 0.01;
-  public static readonly MAX_POWER = 1;
-  public static readonly DEFAULT_POWER = 0.5;
+  private container: HTMLElement;
+  
+  private scoreP1: HTMLElement;
+  private scoreP2: HTMLElement;
+  private gameMessage: HTMLElement;
+  private powerFill: HTMLElement;
+  private powerTrigger: HTMLElement;
+  private aimTrigger: HTMLElement;
+  private wheelMarks: HTMLElement;
+  private menuBtn: HTMLButtonElement;
 
-  private container: HTMLDivElement;
-  private powerSlider: HTMLInputElement;
-  private powerValue: HTMLSpanElement;
-  private strikeButton: HTMLButtonElement;
-  private gameInfo: HTMLDivElement;
-  private playerInfo: HTMLDivElement;
-  private groupsInfo: HTMLDivElement;
-  private pocketedInfo: HTMLDivElement;
-  private restartButton: HTMLButtonElement;
+  // Callbacks
+  private onStrikeCallback?: (power: number) => void;
+  private onPowerUpdateCallback?: (power: number) => void;
+  private onAimDeltaCallback?: (delta: number) => void;
+  private onRestartCallback?: () => void;
 
-  private onPowerChange?: (power: number) => void;
-  private onStrike?: () => void;
-  private onRestart?: () => void;
+  private isDraggingPower: boolean = false;
+  private isDraggingAim: boolean = false;
+  private lastAimY: number = 0;
+  private currentPower: number = 0;
 
   constructor() {
-    this.container = this.createUI();
-    this.powerSlider = this.container.querySelector('#powerSlider')!;
-    this.powerValue = this.container.querySelector('#powerValue')!;
-    this.strikeButton = this.container.querySelector('#strikeButton')!;
+    this.container = document.getElementById('game-ui')!;
+    this.scoreP1 = document.getElementById('score-p1')!;
+    this.scoreP2 = document.getElementById('score-p2')!;
+    this.gameMessage = document.getElementById('game-message')!;
+    this.powerFill = document.getElementById('power-fill')!;
+    this.powerTrigger = document.getElementById('power-trigger')!;
+    this.aimTrigger = document.getElementById('aim-trigger')!;
+    this.wheelMarks = document.querySelector('.wheel-marks') as HTMLElement;
+    this.menuBtn = document.getElementById('menu-btn') as HTMLButtonElement;
 
-    this.gameInfo = document.querySelector('#gameInfo')!;
-    this.restartButton = document.querySelector('#restartButton')!;
-    this.playerInfo = this.gameInfo.querySelector('.player-info')!;
-    this.groupsInfo = this.gameInfo.querySelector('.groups-info')!;
-    this.pocketedInfo = this.gameInfo.querySelector('.pocketed-info')!;
-
-    this.setupEventListeners();
+    this.setupInteractions();
   }
 
-  private createUI(): HTMLDivElement {
-    const gameInfo = document.createElement('div');
-    gameInfo.id = 'gameInfo';
-    gameInfo.className = 'game-info';
-    gameInfo.innerHTML = `
-    <div class="player-info">Игрок 1 ход</div>
-    <div class="groups-info">Группы не определены</div>
-    <div class="pocketed-info">Забито: 0/15</div>
-    <button id="restartButton" class="restart-btn">🔄 Новая игра</button>
-  `;
-    document.body.appendChild(gameInfo);
+  private setupInteractions(): void {
+    // --- POWER CONTROL ---
+    const startPowerDrag = (e: MouseEvent | TouchEvent) => {
+      this.isDraggingPower = true;
+      this.updatePowerFromEvent(e);
+    };
 
-    const container = document.createElement('div');
-    container.id = 'billiard-ui';
-    container.innerHTML = `
-    <div class="power-control">
-      <label for="powerSlider">Сила удара: <span id="powerValue">50%</span></label>
-      <input type="range" min="${UIManager.MIN_POWER * 100}" max="${UIManager.MAX_POWER * 100}" value="${UIManager.DEFAULT_POWER * 100}" id="powerSlider" />
-    </div>
+    const movePowerDrag = (e: MouseEvent | TouchEvent) => {
+      if (!this.isDraggingPower) return;
+      this.updatePowerFromEvent(e);
+      e.preventDefault();
+    };
+
+    const endPowerDrag = () => {
+      if (!this.isDraggingPower) return;
+      this.isDraggingPower = false;
+      
+      if (this.currentPower > 0.05) {
+        if (this.onStrikeCallback) this.onStrikeCallback(this.currentPower);
+      }
+      
+      this.currentPower = 0;
+      this.powerFill.style.height = '0%';
+      if(this.onPowerUpdateCallback) this.onPowerUpdateCallback(0);
+    };
+
+    this.powerTrigger.addEventListener('mousedown', startPowerDrag);
+    this.powerTrigger.addEventListener('touchstart', startPowerDrag);
+
+    window.addEventListener('mousemove', movePowerDrag);
+    window.addEventListener('touchmove', movePowerDrag, { passive: false });
+
+    window.addEventListener('mouseup', endPowerDrag);
+    window.addEventListener('touchend', endPowerDrag);
+
+    // --- AIM CONTROL (Vertical Wheel) ---
+    const startAimDrag = (e: MouseEvent | TouchEvent) => {
+      this.isDraggingAim = true;
+      this.lastAimY = this.getClientY(e);
+    };
+
+    const moveAimDrag = (e: MouseEvent | TouchEvent) => {
+      if (!this.isDraggingAim) return;
+      const y = this.getClientY(e);
+      const delta = this.lastAimY - y; 
+      this.lastAimY = y;
+
+      const currentBgPos = parseFloat(this.wheelMarks.style.backgroundPositionY || '0');
+      this.wheelMarks.style.backgroundPositionY = `${currentBgPos - delta}px`;
+
+      if (this.onAimDeltaCallback) {
+        this.onAimDeltaCallback(delta * 0.005); 
+      }
+      
+      e.preventDefault();
+    };
+
+    const endAimDrag = () => {
+      this.isDraggingAim = false;
+    };
+
+    this.aimTrigger.addEventListener('mousedown', startAimDrag);
+    this.aimTrigger.addEventListener('touchstart', startAimDrag);
+
+    // ИСПРАВЛЕНО: Добавлены слушатели для движения колеса
+    window.addEventListener('mousemove', moveAimDrag);
+    window.addEventListener('touchmove', moveAimDrag, { passive: false });
+
+    window.addEventListener('mouseup', endAimDrag);
+    window.addEventListener('touchend', endAimDrag);
+
+    // --- MENU ---
+    this.menuBtn.addEventListener('click', () => {
+        if(confirm("Перезапустить игру?")) {
+            if(this.onRestartCallback) this.onRestartCallback();
+        }
+    });
+  }
+
+  private updatePowerFromEvent(e: MouseEvent | TouchEvent): void {
+    const rect = this.powerTrigger.getBoundingClientRect();
+    const clientY = this.getClientY(e);
     
-    <button id="strikeButton" class="strike-btn" disabled>💥 Удар (Enter)</button>
+    const relativeY = rect.bottom - clientY;
+    let percent = relativeY / rect.height;
     
-    <div class="hint">🎯 Зажмите ЛКМ и двигайте мышь ВЕРТИКАЛЬНО для прицеливания</div>
-  `;
-    document.body.appendChild(container);
+    percent = Math.max(0, Math.min(1, percent));
+    this.currentPower = percent;
+    
+    this.powerFill.style.height = `${percent * 100}%`;
 
-    return container;
+    if (this.onPowerUpdateCallback) {
+        this.onPowerUpdateCallback(this.currentPower);
+    }
   }
 
-  private setupEventListeners(): void {
-    this.powerSlider.addEventListener('input', () => {
-      const power = parseInt(this.powerSlider.value) / 100;
-      this.powerValue.textContent = this.powerSlider.value + '%';
-      if (this.onPowerChange) {
-        this.onPowerChange(power);
-      }
-    });
-
-    this.strikeButton.addEventListener('click', () => {
-      if (this.onStrike) {
-        this.onStrike();
-      }
-    });
-
-    this.restartButton.addEventListener('click', () => {
-      if (this.onRestart && confirm('Начать новую игру?')) {
-        this.onRestart();
-      }
-    });
+  private getClientY(e: MouseEvent | TouchEvent): number {
+    if ((e as TouchEvent).touches && (e as TouchEvent).touches.length > 0) {
+      return (e as TouchEvent).touches[0].clientY;
+    }
+    return (e as MouseEvent).clientY;
   }
 
-  public setPower(value: number): number {
-    value = Math.max(UIManager.MIN_POWER, Math.min(UIManager.MAX_POWER, value));
+  public updateGameInfo(message: string, player: number, scoreText: string, _pocketed: number): void {
+    this.gameMessage.textContent = message;
+    const [s1, s2] = scoreText.split('|').map(s => s.replace(/\D/g, ''));
+    this.scoreP1.textContent = s1 || '0';
+    this.scoreP2.textContent = s2 || '0';
 
-    const percent = Math.round(value * 100);
-    this.powerSlider.value = percent.toString();
-    this.powerValue.textContent = percent + '%';
-
-    return value;
+    this.scoreP1.classList.toggle('active', player === 1);
+    this.scoreP2.classList.toggle('active', player === 2);
+    document.querySelector('.avatar.p1')?.classList.toggle('active', player === 1);
+    document.querySelector('.avatar.p2')?.classList.toggle('active', player === 2);
   }
 
-  public getPower(): number {
-    return parseInt(this.powerSlider.value) / 100;
+  public setControlsEnabled(enabled: boolean): void {
+    // ИСПРАВЛЕНО: Используем container для глобального отключения кликов, если нужно
+    // Но оставляем pointer-events для триггеров, чтобы они работали
+    this.container.style.pointerEvents = 'none'; // Сам контейнер прозрачен для событий
+    this.powerTrigger.style.pointerEvents = enabled ? 'auto' : 'none';
+    this.aimTrigger.style.pointerEvents = enabled ? 'auto' : 'none';
+    
+    this.powerTrigger.style.opacity = enabled ? '1' : '0.5';
   }
 
-  public setStrikeEnabled(enabled: boolean): void {
-    this.strikeButton.disabled = !enabled;
-  }
+  public onStrike(cb: (power: number) => void) { this.onStrikeCallback = cb; }
+  public onPowerUpdate(cb: (power: number) => void) { this.onPowerUpdateCallback = cb; }
+  public onAimDelta(cb: (delta: number) => void) { this.onAimDeltaCallback = cb; }
+  public onRestart(cb: () => void) { this.onRestartCallback = cb; }
 
-  public isStrikeEnabled(): boolean {
-    return !this.strikeButton.disabled;
-  }
-
-  public updateGameInfo(message: string, player: number, groups: string, pocketed: number): void {
-    this.playerInfo.textContent = `Игрок ${player} ход`;
-    this.groupsInfo.textContent = groups;
-    this.pocketedInfo.textContent = `Забито: ${pocketed}/15`;
-
-    const hint = this.container.querySelector('.hint')!;
-    hint.textContent = message;
-  }
-
-  public onPowerChanged(callback: (power: number) => void): void {
-    this.onPowerChange = callback;
-  }
-
-  public onStrikeClicked(callback: () => void): void {
-    this.onStrike = callback;
-  }
-
-  public onRestartClicked(callback: () => void): void {
-    this.onRestart = callback;
-  }
-
-  public dispose(): void {
-    this.container.remove();
-    this.gameInfo.remove();
-  }
+  public dispose() {}
 }
