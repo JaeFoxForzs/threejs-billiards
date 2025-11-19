@@ -36,10 +36,6 @@ export class SceneManager {
     this.renderer.toneMappingExposure = 1.0;
 
     this.container.appendChild(this.renderer.domElement);
-
-    // Добавляем базовый Ambient, чтобы совсем темно не было, если парсинг не сработает
-    const ambient = new THREE.AmbientLight(0xffffff, 0.2);
-    this.scene.add(ambient);
   }
 
   public addToScene(obj: THREE.Object3D) { this.scene.add(obj); }

@@ -52,12 +52,13 @@ export class BilliardGame {
       this.sceneManager.getRenderer().domElement,
       this.cueStick,
       this.ballManager,
-      this.gameRules
+      this.gameRules,
+      this.table
     );
 
     // Добавляем UI элементы
     this.sceneManager.addToScene(this.inputController.getAimLine());
-    
+
     // Здесь getHighlightOutline теперь возвращает targetGhostBall (желтый призрак удара)
     const ghostHit = this.inputController.getHighlightOutline();
     if (ghostHit) this.sceneManager.addToScene(ghostHit);

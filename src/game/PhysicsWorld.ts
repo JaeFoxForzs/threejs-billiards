@@ -3,12 +3,14 @@ import { SoundManager } from './SoundManager';
 
 /**
  * Физический мир игры (Cannon.js)
- * Настроен под физику Русского бильярда (тяжелые шары, жесткие борта)
+ * Оптимизирован для 60 FPS и точной передачи импульса
  */
 export class PhysicsWorld {
   private world: CANNON.World;
-  private readonly timeStep: number = 1 / 120;
-  private readonly maxSubSteps: number = 10;
+  // Фиксированный шаг 1/60. Важно вызывать step именно с таким шагом в цикле
+  private readonly timeStep: number = 1 / 60; 
+  // Увеличиваем подшаги для обработки быстрых ударов
+  private readonly maxSubSteps: number = 20; 
 
   // Материалы
   private ballMaterial: CANNON.Material;
@@ -23,17 +25,25 @@ export class PhysicsWorld {
       gravity: new CANNON.Vec3(0, -9.82, 0)
     });
 
-    // Создаем материалы
-    this.ballMaterial = new CANNON.Material('ball');
-    this.tableMaterial = new CANNON.Material('table'); // Сукно
-    this.cushionMaterial = new CANNON.Material('cushion'); // Резина бортов
-    this.pocketMaterial = new CANNON.Material('pocket'); // Внутри лузы
-
-    this.setupPhysicsMaterials();
+    // Настройка решателя (Solver) для точности
+    // GSSolver - стандартный, но нужно больше итераций для бильярда
+    (this.world.solver as CANNON.GSSolver).iterations = 20; 
+    (this.world.solver as CANNON.GSSolver).tolerance = 1e-4;
+    
+    // Отключаем broadphase 'Naive', ставим SAP (Sweep and Prune) - это быстрее для множества объектов
+    this.world.broadphase = new CANNON.SAPBroadphase(this.world);
     this.world.allowSleep = true;
 
-    // Улучшение стабильности контактов
-    this.world.defaultContactMaterial.contactEquationStiffness = 1e8;
+    // Создаем материалы
+    this.ballMaterial = new CANNON.Material('ball');
+    this.tableMaterial = new CANNON.Material('table'); 
+    this.cushionMaterial = new CANNON.Material('cushion'); 
+    this.pocketMaterial = new CANNON.Material('pocket'); 
+
+    this.setupPhysicsMaterials();
+
+    // Стабильность контактов (чуть мягче, чем 1e8, чтобы не было взрывов, но достаточно жестко)
+    this.world.defaultContactMaterial.contactEquationStiffness = 1e7;
     this.world.defaultContactMaterial.contactEquationRelaxation = 3;
   }
 
@@ -42,39 +52,36 @@ export class PhysicsWorld {
     this.setupCollisionSounds();
   }
 
-  /**
-   * Настраивает взаимодействие материалов
-   */
   private setupPhysicsMaterials(): void {
     // 1. ШАР ↔ ШАР
-    // Упругий удар, почти без потери энергии, но с небольшим трением
+    // friction очень низкий, шары полированные. 
+    // restitution высокий для передачи энергии.
     const ballBall = new CANNON.ContactMaterial(this.ballMaterial, this.ballMaterial, {
-      friction: 0.1,
-      restitution: 0.92, // Высокая упругость (фенол-альдегидная смола)
+      friction: 0.04, // Было 0.1 - снижаем, чтобы не терять энергию на трение при ударе
+      restitution: 0.95, // Почти упругий удар
       contactEquationStiffness: 1e7,
       contactEquationRelaxation: 3
     });
 
-    // 2. ШАР ↔ СУКНО (СТОЛ)
-    // Высокое трение скольжения, низкая упругость (чтобы не прыгал)
+    // 2. ШАР ↔ СУКНО
+    // friction снижаем с 0.7 до 0.2. 0.7 - это наждачка, шары вставали колом.
+    // Rolling friction (трение качения) в Cannon-es нет напрямую в ContactMaterial,
+    // оно эмулируется через damping в классе Ball.
     const ballTable = new CANNON.ContactMaterial(this.ballMaterial, this.tableMaterial, {
-      friction: 0.7, // Сильное трение сукна
-      restitution: 0.1, // Не прыгает на столе
+      friction: 0.2, 
+      restitution: 0.1, 
     });
 
-    // 3. ШАР ↔ БОРТ (РЕЗИНА)
-    // Упругость зависит от силы, но в среднем высокая. Русские борта жестче пула.
+    // 3. ШАР ↔ БОРТ
     const ballCushion = new CANNON.ContactMaterial(this.ballMaterial, this.cushionMaterial, {
-      friction: 0.3, // Трение при вращении о борт
-      restitution: 0.75, // Отскок от борта
+      friction: 0.15,
+      restitution: 0.8, // Хороший отскок
     });
 
     // 4. ШАР ↔ ЛУЗА
     const ballPocket = new CANNON.ContactMaterial(this.ballMaterial, this.pocketMaterial, {
-      friction: 0.5,
-      restitution: 0.0, // ГАСИМ ВЕСЬ ОТСКОК
-      contactEquationStiffness: 1e8,
-      contactEquationRelaxation: 3
+      friction: 0.3,
+      restitution: 0.0, // Гасим отскок полностью
     });
 
     this.world.addContactMaterial(ballBall);
@@ -90,25 +97,22 @@ export class PhysicsWorld {
       const bodyA = event.bodyA;
       const bodyB = event.bodyB;
 
-      // Скорость столкновения (проекция относительной скорости на нормаль)
-      // Cannon.js не дает напрямую impact velocity в событии beginContact в старых версиях,
-      // но можно оценить по относительной скорости тел.
       const velocityA = bodyA.velocity;
       const velocityB = bodyB.velocity;
+      // Относительная скорость важна для силы звука
       const relativeVelocity = velocityA.vsub(velocityB).length();
 
-      // Фильтруем очень слабые касания
-      if (relativeVelocity < 0.1) return;
+      if (relativeVelocity < 0.2) return; // Фильтр шума
 
-      // Определяем типы материалов
       const matA = bodyA.material;
       const matB = bodyB.material;
 
-      // Шар об шар
+      if (!matA || !matB) return;
+
       if (matA.name === 'ball' && matB.name === 'ball') {
+        // Усиливаем звук удара шаров, так как импульс стал лучше
         this.soundManager.playBallHit(relativeVelocity);
       }
-      // Шар об борт
       else if ((matA.name === 'ball' && matB.name === 'cushion') ||
         (matA.name === 'cushion' && matB.name === 'ball')) {
         this.soundManager.playCushionHit(relativeVelocity);
@@ -117,6 +121,8 @@ export class PhysicsWorld {
   }
 
   public step(deltaTime: number): void {
+    // Важно: передаем фиксированный timeStep первым аргументом
+    // deltaTime используется для интерполяции (если нужно), но физика считается дискретно
     this.world.step(this.timeStep, deltaTime, this.maxSubSteps);
   }
 

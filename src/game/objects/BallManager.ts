@@ -126,5 +126,5 @@ export class BallManager {
       return this.balls.every(b => b.isPocketedState() || !b.isMoving());
   }
 
-  public setPocketCheckEnabled(_enabled: boolean): void {} // Исправлено: _enabled
+  public setPocketCheckEnabled(_enabled: boolean): void {}
 }
